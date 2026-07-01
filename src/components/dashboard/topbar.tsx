@@ -2,6 +2,8 @@
 
 import { Bell, Menu, RefreshCw, UserCircle } from "lucide-react";
 
+import { ReportIssueDialog } from "@/components/dashboard/report-issue-dialog";
+
 export function Topbar() {
   return (
     <header className="fixed top-0 right-0 left-0 z-30 flex items-center justify-between border-b border-[#424754]/20 bg-[#171f33]/30 px-6 py-3 backdrop-blur-xl lg:left-64">
@@ -26,13 +28,16 @@ export function Topbar() {
         >
           Alerts
         </button>
-        <button
-          className="hidden rounded-lg border border-[#ffb4ab]/20 bg-[#93000a]/20 px-4 py-2 text-xs font-bold tracking-wider text-[#ffb4ab] uppercase transition-all hover:bg-[#93000a]/40 active:scale-95 sm:block"
-          title="Coming soon"
-          type="button"
-        >
-          Report Issue
-        </button>
+        <ReportIssueDialog
+          trigger={
+            <button
+              className="hidden rounded-lg border border-[#ffb4ab]/20 bg-[#93000a]/20 px-4 py-2 text-xs font-bold tracking-wider text-[#ffb4ab] uppercase transition-all hover:bg-[#93000a]/40 active:scale-95 sm:block"
+              type="button"
+            >
+              Report Issue
+            </button>
+          }
+        />
         <div className="flex gap-2">
           <button
             aria-label="Refresh"
