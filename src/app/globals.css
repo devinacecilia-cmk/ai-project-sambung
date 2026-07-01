@@ -232,3 +232,29 @@
     animation: none;
   }
 }
+
+@keyframes sonar {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.sonar-wave {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  animation: sonar 2s infinite ease-out;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sonar-wave {
+    animation: none;
+  }
+}

@@ -1,10 +1,19 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Bell, Menu, RefreshCw, UserCircle } from "lucide-react";
 
 import { ReportIssueDialog } from "@/components/dashboard/report-issue-dialog";
 
+const NAV_LINKS = [
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "History", href: "/dashboard/history" },
+];
+
 export function Topbar() {
+  const pathname = usePathname();
+
   return (
     <header className="fixed top-0 right-0 left-0 z-30 flex items-center justify-between border-b border-[#424754]/20 bg-[#171f33]/30 px-6 py-3 backdrop-blur-xl lg:left-64">
       <div className="flex items-center gap-4">
@@ -21,13 +30,31 @@ export function Topbar() {
         </span>
       </div>
       <div className="flex items-center gap-4">
-        <button
-          className="mr-6 hidden py-1 text-sm font-medium text-[#c2c6d6] transition-colors duration-200 hover:text-[#dae2fd] md:block"
-          title="Coming soon"
-          type="button"
-        >
-          Alerts
-        </button>
+        <div className="mr-6 hidden items-center gap-6 md:flex">
+          {NAV_LINKS.map(({ label, href }) => {
+            const active = pathname === href;
+            return (
+              <Link
+                className={`py-1 text-sm font-medium transition-colors duration-200 ${
+                  active
+                    ? "border-b-2 border-[#adc6ff] font-bold text-[#adc6ff]"
+                    : "text-[#c2c6d6] hover:text-[#dae2fd]"
+                }`}
+                href={href}
+                key={href}
+              >
+                {label}
+              </Link>
+            );
+          })}
+          <button
+            className="text-sm font-medium text-[#c2c6d6] transition-colors duration-200 hover:text-[#dae2fd]"
+            title="Coming soon"
+            type="button"
+          >
+            Alerts
+          </button>
+        </div>
         <ReportIssueDialog
           trigger={
             <button
