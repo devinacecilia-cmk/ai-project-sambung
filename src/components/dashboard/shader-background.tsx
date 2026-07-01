@@ -16,12 +16,14 @@ const FRAGMENT_SHADER = `
   varying vec2 v_texCoord;
   uniform float u_time;
   uniform vec2 u_resolution;
+  uniform vec2 u_mouse;
 
   void main() {
     vec2 uv = v_texCoord;
+    vec2 mouse = u_mouse / u_resolution;
     vec2 p = uv * 2.0 - 1.0;
     p.x *= u_resolution.x / u_resolution.y;
-    float t = u_time * 0.15;
+   float t = u_time * 0.15;
 
     vec3 color1 = vec3(0.01, 0.03, 0.08);
     vec3 color2 = vec3(0.04, 0.08, 0.15);
@@ -36,6 +38,9 @@ const FRAGMENT_SHADER = `
     m = m * 0.5 + 0.5;
     vec3 finalColor = mix(color1, color2, m);
     finalColor = mix(finalColor, color3, pow(m, 4.0) * 0.4);
+
+    float distToMouse = length(uv - mouse);
+    finalColor += color3 * (1.0 - smoothstep(0.0, 0.5, distToMouse)) * 0.15;
 
     gl_FragColor = vec4(finalColor, 1.0);
   }
@@ -82,8 +87,16 @@ export function ShaderBackground() {
     const positionLocation = gl.getAttribLocation(program, "position");
     const timeLocation = gl.getUniformLocation(program, "u_time");
     const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
+    const mouseLocation = gl.getUniformLocation(program, "u_mouse");
     gl.enableVertexAttribArray(positionLocation);
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    function handleMouseMove(event: MouseEvent) {
+      mouse.x = event.clientX;
+      mouse.y = window.innerHeight - event.clientY;
+    }
+    window.addEventListener("mousemove", handleMouseMove);
 
     function draw(time: number) {
       if (!canvas || !gl) return;
@@ -92,6 +105,7 @@ export function ShaderBackground() {
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.uniform1f(timeLocation, time * 0.001);
       gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+      gl.uniform2f(mouseLocation, mouse.x, mouse.y);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
@@ -112,6 +126,7 @@ export function ShaderBackground() {
 
     return () => {
       cancelAnimationFrame(frameId);
+      window.removeEventListener("mousemove", handleMouseMove);
       gl.deleteProgram(program);
       gl.deleteShader(vertexShader);
       gl.deleteShader(fragmentShader);
