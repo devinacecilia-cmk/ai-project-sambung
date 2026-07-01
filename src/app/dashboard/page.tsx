@@ -3,11 +3,13 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import {
-  Building2,
+  Cloud,
   Download,
   Gauge,
   Globe,
-  Server,
+  Router,
+  ShieldBan,
+  ShieldCheck,
   Terminal,
   Upload,
   Wifi,
@@ -89,28 +91,43 @@ const SERVICE_ROWS: {
 }[] = [
   {
     icon: Globe,
-    title: "Internet Connection",
-    subtitle: "Global gateway protocol access",
+    title: "Google Public DNS",
+    subtitle: "8.8.8.8",
     status: "Connected",
-    latency: "28 ms",
+    latency: "12 ms",
     tone: "success",
   },
   {
-    icon: Server,
-    title: "SAP Server",
-    subtitle: "Main production cluster nodes",
-    status: "Reachable",
-    latency: "45 ms",
+    icon: Cloud,
+    title: "Cloudflare",
+    subtitle: "1.1.1.1",
+    status: "Connected",
+    latency: "9 ms",
     tone: "success",
   },
   {
-    icon: Building2,
-    title: "GL system",
-    subtitle: "Internal API & Ledger endpoints",
-    status: "Unreachable",
-    latency: "—",
-    tone: "error",
-    href: "/dashboard/diagnostics",
+    icon: ShieldCheck,
+    title: "Quad9",
+    subtitle: "9.9.9.9",
+    status: "Connected",
+    latency: "15 ms",
+    tone: "success",
+  },
+  {
+    icon: Router,
+    title: "OpenDNS",
+    subtitle: "208.67.222.222",
+    status: "Connected",
+    latency: "21 ms",
+    tone: "success",
+  },
+  {
+    icon: ShieldBan,
+    title: "AdGuard DNS",
+    subtitle: "94.140.14.14",
+    status: "Connected",
+    latency: "18 ms",
+    tone: "success",
   },
 ];
 
@@ -405,34 +422,38 @@ export default function DashboardOverviewPage() {
           </span>
         </h3>
         <div
-          className={`${GLASS_CARD} space-y-1 overflow-hidden border-emerald-500/10 bg-black/40 px-6 py-4 font-mono`}
+          className={`${GLASS_CARD} log-marquee-viewport relative h-[168px] overflow-hidden border-emerald-500/10 bg-black/40 font-mono`}
         >
-          {ACTIVITY_LOGS.map(({ time, message, tag, color }) => (
-            <div
-              className={`flex items-center gap-3 text-[11px] ${
-                color === "emerald"
-                  ? "text-emerald-400/90"
-                  : color === "red"
-                    ? "text-red-400/90"
-                    : "text-[#c2c6d6]"
-              }`}
-              key={time}
-            >
-              <span className="opacity-40">{time}</span>
-              <span className="flex-1 truncate">{message}</span>
-              <span
-                className={`rounded border px-1.5 py-0.5 text-[9px] leading-none ${
-                  color === "emerald"
-                    ? "border-emerald-500/30"
-                    : color === "red"
-                      ? "border-red-500/30"
-                      : "border-white/10"
-                }`}
-              >
-                {tag}
-              </span>
-            </div>
-          ))}
+          <div className="log-marquee-content flex flex-col gap-3 px-6 py-4">
+            {[...ACTIVITY_LOGS, ...ACTIVITY_LOGS].map(
+              ({ time, message, tag, color }, index) => (
+                <div
+                  className={`flex items-center gap-3 text-[11px] ${
+                    color === "emerald"
+                      ? "text-emerald-400/90"
+                      : color === "red"
+                        ? "text-red-400/90"
+                        : "text-[#c2c6d6]"
+                  }`}
+                  key={`${time}-${index}`}
+                >
+                  <span className="opacity-40">{time}</span>
+                  <span className="flex-1 truncate">{message}</span>
+                  <span
+                    className={`rounded border px-1.5 py-0.5 text-[9px] leading-none ${
+                      color === "emerald"
+                        ? "border-emerald-500/30"
+                        : color === "red"
+                          ? "border-red-500/30"
+                          : "border-white/10"
+                    }`}
+                  >
+                    {tag}
+                  </span>
+                </div>
+              ),
+            )}
+          </div>
         </div>
       </section>
     </>

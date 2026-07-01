@@ -258,3 +258,43 @@
     animation: none;
   }
 }
+
+@keyframes marquee-vertical {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+.log-marquee-content {
+  animation: marquee-vertical 10s linear infinite;
+}
+
+.log-marquee-viewport:hover .log-marquee-content {
+  animation-play-state: paused;
+}
+
+.log-marquee-viewport {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 15%,
+    black 85%,
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 15%,
+    black 85%,
+    transparent
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .log-marquee-content {
+    animation: none;
+  }
+}
