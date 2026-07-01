@@ -1,12 +1,13 @@
 "use client";
 
-import type { ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
 import {
   Cloud,
   Download,
   Gauge,
   Globe,
+  Loader2,
   Router,
   ShieldBan,
   ShieldCheck,
@@ -15,8 +16,78 @@ import {
   Wifi,
 } from "lucide-react";
 
+import type {
+  PingAllResponse,
+  ServiceLogEntry,
+  ServiceResult,
+} from "@/app/api/ping-all/route";
 import { GLASS_CARD } from "@/components/dashboard/glass-card";
 import { PulseDot } from "@/components/dashboard/pulse-dot";
+
+const SCAN_INTERVAL_MS = 30_000;
+const ACTIVITY_FEED_LIMIT = 20;
+
+const SERVICE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  "Google Public DNS": Globe,
+  Cloudflare: Cloud,
+  Quad9: ShieldCheck,
+  OpenDNS: Router,
+  "AdGuard DNS": ShieldBan,
+};
+
+type Tone = "success" | "warning" | "error";
+
+const TONE_CLASSES: Record<
+  Tone,
+  {
+    iconWrap: string;
+    badgeWrap: string;
+    badgeText: string;
+    dot: string;
+    glow: string;
+  }
+> = {
+  success: {
+    iconWrap: "border-[#adc6ff]/10 bg-[#adc6ff]/10 text-[#adc6ff]",
+    badgeWrap: "border-emerald-500/20 bg-emerald-500/10",
+    badgeText: "text-emerald-400",
+    dot: "bg-emerald-400",
+    glow: "hover:shadow-[0_10px_40px_-15px_rgba(16,185,129,0.2)] hover:border-emerald-500/30",
+  },
+  warning: {
+    iconWrap: "border-amber-400/10 bg-amber-400/10 text-amber-400",
+    badgeWrap: "border-amber-400/20 bg-amber-400/10",
+    badgeText: "text-amber-400",
+    dot: "bg-amber-400",
+    glow: "hover:shadow-[0_10px_40px_-15px_rgba(245,158,11,0.2)] hover:border-amber-400/30",
+  },
+  error: {
+    iconWrap: "border-[#ffb4ab]/10 bg-[#93000a]/10 text-[#ffb4ab]",
+    badgeWrap: "border-red-500/20 bg-red-500/10",
+    badgeText: "text-red-400",
+    dot: "bg-red-400",
+    glow: "hover:shadow-[0_10px_40px_-15px_rgba(239,68,68,0.2)] hover:border-red-500/30",
+  },
+};
+
+function toneForStatus(status: ServiceResult["status"]): Tone {
+  if (status === "CONNECTED") return "success";
+  if (status === "TIMEOUT") return "warning";
+  return "error";
+}
+
+function formatRelativeTime(iso: string, now: number): string {
+  const diffSeconds = Math.max(
+    0,
+    Math.round((now - new Date(iso).getTime()) / 1000),
+  );
+  if (diffSeconds < 5) return "JUST NOW";
+  if (diffSeconds < 60) return `${diffSeconds}S AGO`;
+  const diffMinutes = Math.round(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes}M AGO`;
+  const diffHours = Math.round(diffMinutes / 60);
+  return `${diffHours}H AGO`;
+}
 
 const STAT_CARDS = [
   {
@@ -80,84 +151,6 @@ const METRIC_TILES: {
   },
 ];
 
-const SERVICE_ROWS: {
-  icon: ComponentType<{ className?: string }>;
-  title: string;
-  subtitle: string;
-  status: string;
-  latency: string;
-  tone: "success" | "error";
-  href?: string;
-}[] = [
-  {
-    icon: Globe,
-    title: "Google Public DNS",
-    subtitle: "8.8.8.8",
-    status: "Connected",
-    latency: "12 ms",
-    tone: "success",
-  },
-  {
-    icon: Cloud,
-    title: "Cloudflare",
-    subtitle: "1.1.1.1",
-    status: "Connected",
-    latency: "9 ms",
-    tone: "success",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Quad9",
-    subtitle: "9.9.9.9",
-    status: "Connected",
-    latency: "15 ms",
-    tone: "success",
-  },
-  {
-    icon: Router,
-    title: "OpenDNS",
-    subtitle: "208.67.222.222",
-    status: "Connected",
-    latency: "21 ms",
-    tone: "success",
-  },
-  {
-    icon: ShieldBan,
-    title: "AdGuard DNS",
-    subtitle: "94.140.14.14",
-    status: "Connected",
-    latency: "18 ms",
-    tone: "success",
-  },
-];
-
-const ACTIVITY_LOGS = [
-  {
-    time: "14:32:01",
-    message: "PING: Internet Gateway (10.0.0.1) - SUCCESS [28ms]",
-    tag: "OK",
-    color: "emerald",
-  },
-  {
-    time: "14:31:58",
-    message: "ERR: GL_System connection timeout - RETRYING...",
-    tag: "CRIT",
-    color: "red",
-  },
-  {
-    time: "14:31:55",
-    message: "PING: SAP_Prod_Srv - REACHABLE [45ms]",
-    tag: "OK",
-    color: "emerald",
-  },
-  {
-    time: "14:31:40",
-    message: "AUTH: Admin login from 192.168.1.105",
-    tag: "INFO",
-    color: "white",
-  },
-];
-
 function HealthRing({ percent }: { percent: number }) {
   const radius = 42;
   const circumference = 2 * Math.PI * radius;
@@ -200,6 +193,49 @@ function HealthRing({ percent }: { percent: number }) {
 }
 
 export default function DashboardOverviewPage() {
+  const [services, setServices] = useState<ServiceResult[]>([]);
+  const [activityFeed, setActivityFeed] = useState<ServiceLogEntry[]>([]);
+  const [lastScan, setLastScan] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function runScan() {
+      setIsScanning(true);
+      try {
+        const res = await fetch("/api/ping-all");
+        const data: PingAllResponse = await res.json();
+        if (cancelled) return;
+        setServices(data.results);
+        setLastScan(data.scannedAt);
+        setActivityFeed((previous) =>
+          [...data.results.map((result) => result.logEntry), ...previous].slice(
+            0,
+            ACTIVITY_FEED_LIMIT,
+          ),
+        );
+      } catch (error) {
+        console.error("Scan failed", error);
+      } finally {
+        if (!cancelled) setIsScanning(false);
+      }
+    }
+
+    runScan();
+    const interval = setInterval(runScan, SCAN_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, []);
+
   return (
     <>
       {/* Hero Status */}
@@ -325,86 +361,80 @@ export default function DashboardOverviewPage() {
           </h3>
           <div className="flex gap-3">
             <span className="flex items-center gap-1.5 rounded-lg bg-white/5 px-2 py-1 text-[10px] font-bold text-[#c2c6d6]">
-              <span className="size-1.5 animate-pulse rounded-full bg-[#adc6ff]" />
+              {isScanning ? (
+                <Loader2 className="size-3 animate-spin text-[#adc6ff]" />
+              ) : (
+                <span className="size-1.5 animate-pulse rounded-full bg-[#adc6ff]" />
+              )}
               LIVE UPDATES
             </span>
             <span className="rounded-lg bg-white/5 px-2 py-1 text-[10px] font-bold text-[#c2c6d6]">
-              LAST SCAN: 2M AGO
+              LAST SCAN:{" "}
+              {lastScan ? formatRelativeTime(lastScan, now) : "PENDING"}
             </span>
           </div>
         </div>
         <div className="space-y-2">
-          {SERVICE_ROWS.map(
-            ({ icon: Icon, title, subtitle, status, latency, tone, href }) => {
-              const rowClassName = `${GLASS_CARD} flex items-center gap-4 px-6 py-4 ${
-                tone === "success"
-                  ? "hover:shadow-[0_10px_40px_-15px_rgba(16,185,129,0.2)] hover:border-emerald-500/30"
-                  : "hover:shadow-[0_10px_40px_-15px_rgba(239,68,68,0.2)] hover:border-red-500/30"
-              }`;
-              const rowContent = (
-                <>
+          {services.length === 0 ? (
+            <div
+              className={`${GLASS_CARD} flex items-center gap-3 px-6 py-4 text-sm text-[#c2c6d6]`}
+            >
+              <Loader2 className="size-4 animate-spin text-[#adc6ff]" />
+              Scanning services...
+            </div>
+          ) : (
+            services.map((service) => {
+              const Icon = SERVICE_ICONS[service.name] ?? Globe;
+              const tone = toneForStatus(service.status);
+              const toneClasses = TONE_CLASSES[tone];
+              const latencyText =
+                service.latency !== null ? `${service.latency} ms` : "—";
+
+              return (
+                <div
+                  className={`${GLASS_CARD} flex items-center gap-4 px-6 py-4 ${toneClasses.glow}`}
+                  key={service.name}
+                >
                   <div
-                    className={`flex size-10 items-center justify-center rounded-lg border ${
-                      tone === "success"
-                        ? "border-[#adc6ff]/10 bg-[#adc6ff]/10 text-[#adc6ff]"
-                        : "border-[#ffb4ab]/10 bg-[#93000a]/10 text-[#ffb4ab]"
-                    }`}
+                    className={`flex size-10 items-center justify-center rounded-lg border ${toneClasses.iconWrap}`}
                   >
                     <Icon className="size-5" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="truncate text-base font-bold">{title}</h4>
-                    <p className="text-xs text-[#c2c6d6]/70">{subtitle}</p>
+                    <h4 className="truncate text-base font-bold">
+                      {service.name}
+                    </h4>
+                    <p className="text-xs text-[#c2c6d6]/70">{service.ip}</p>
                   </div>
                   <div className="hidden flex-1 justify-center md:flex">
                     <div
-                      className={`flex items-center gap-2 rounded-full border px-3 py-1 ${
-                        tone === "success"
-                          ? "border-emerald-500/20 bg-emerald-500/10"
-                          : "border-red-500/20 bg-red-500/10"
-                      }`}
+                      className={`flex items-center gap-2 rounded-full border px-3 py-1 ${toneClasses.badgeWrap}`}
                     >
                       <span
-                        className={`size-1.5 rounded-full ${
-                          tone === "success" ? "bg-emerald-400" : "bg-red-400"
-                        }`}
+                        className={`size-1.5 rounded-full ${toneClasses.dot}`}
                       />
                       <span
-                        className={`text-xs font-bold tracking-wider uppercase ${
-                          tone === "success"
-                            ? "text-emerald-400"
-                            : "text-red-400"
-                        }`}
+                        className={`text-xs font-bold tracking-wider uppercase ${toneClasses.badgeText}`}
                       >
-                        {status}
+                        {service.status}
                       </span>
                     </div>
                   </div>
                   <div className="w-24 text-right">
                     <span className="block text-[10px] font-bold tracking-tighter text-[#c2c6d6]/50 uppercase">
-                      Latency
+                      Response Time
                     </span>
                     <span
                       className={`text-sm font-bold ${
-                        latency === "—" ? "text-[#c2c6d6]/40" : "text-white"
+                        latencyText === "—" ? "text-[#c2c6d6]/40" : "text-white"
                       }`}
                     >
-                      {latency}
+                      {latencyText}
                     </span>
                   </div>
-                </>
-              );
-
-              return href ? (
-                <Link className={rowClassName} href={href} key={title}>
-                  {rowContent}
-                </Link>
-              ) : (
-                <div className={rowClassName} key={title}>
-                  {rowContent}
                 </div>
               );
-            },
+            })
           )}
         </div>
       </section>
@@ -425,33 +455,35 @@ export default function DashboardOverviewPage() {
           className={`${GLASS_CARD} log-marquee-viewport relative h-[168px] overflow-hidden border-emerald-500/10 bg-black/40 font-mono`}
         >
           <div className="log-marquee-content flex flex-col gap-3 px-6 py-4">
-            {[...ACTIVITY_LOGS, ...ACTIVITY_LOGS].map(
-              ({ time, message, tag, color }, index) => (
-                <div
-                  className={`flex items-center gap-3 text-[11px] ${
-                    color === "emerald"
-                      ? "text-emerald-400/90"
-                      : color === "red"
-                        ? "text-red-400/90"
-                        : "text-[#c2c6d6]"
-                  }`}
-                  key={`${time}-${index}`}
-                >
-                  <span className="opacity-40">{time}</span>
-                  <span className="flex-1 truncate">{message}</span>
-                  <span
-                    className={`rounded border px-1.5 py-0.5 text-[9px] leading-none ${
-                      color === "emerald"
-                        ? "border-emerald-500/30"
-                        : color === "red"
-                          ? "border-red-500/30"
-                          : "border-white/10"
+            {activityFeed.length === 0 ? (
+              <div className="flex items-center gap-3 text-[11px] text-[#c2c6d6]/60">
+                Waiting for first scan...
+              </div>
+            ) : (
+              [...activityFeed, ...activityFeed].map(
+                ({ time, message, level }, index) => (
+                  <div
+                    className={`flex items-center gap-3 text-[11px] ${
+                      level === "OK"
+                        ? "text-emerald-400/90"
+                        : "text-red-400/90"
                     }`}
+                    key={`${time}-${message}-${index}`}
                   >
-                    {tag}
-                  </span>
-                </div>
-              ),
+                    <span className="opacity-40">{time}</span>
+                    <span className="flex-1 truncate">{message}</span>
+                    <span
+                      className={`rounded border px-1.5 py-0.5 text-[9px] leading-none ${
+                        level === "OK"
+                          ? "border-emerald-500/30"
+                          : "border-red-500/30"
+                      }`}
+                    >
+                      {level}
+                    </span>
+                  </div>
+                ),
+              )
             )}
           </div>
         </div>
