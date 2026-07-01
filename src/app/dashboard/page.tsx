@@ -23,9 +23,47 @@ import type {
 } from "@/app/api/ping-all/route";
 import { GLASS_CARD } from "@/components/dashboard/glass-card";
 import { PulseDot } from "@/components/dashboard/pulse-dot";
+import { useSpeedTest, type TestStatus } from "@/hooks/use-speed-test";
 
 const SCAN_INTERVAL_MS = 30_000;
 const ACTIVITY_FEED_LIMIT = 20;
+const SPEED_TEST_INTERVAL_MS = 5 * 60_000;
+
+const STATUS_TITLES: Record<
+  "OPERATIONAL" | "DEGRADED" | "DISCONNECTED",
+  string
+> = {
+  OPERATIONAL: "Systems Operational",
+  DEGRADED: "Network Degraded",
+  DISCONNECTED: "Internet Unreachable",
+};
+
+const STATUS_ICON_STYLES: Record<
+  "OPERATIONAL" | "DEGRADED" | "DISCONNECTED",
+  { ring: string; iconWrap: string; iconText: string }
+> = {
+  OPERATIONAL: {
+    ring: "border-emerald-500/20",
+    iconWrap: "border-emerald-500/10 bg-emerald-500/5",
+    iconText: "text-emerald-400",
+  },
+  DEGRADED: {
+    ring: "border-amber-400/20",
+    iconWrap: "border-amber-400/10 bg-amber-400/5",
+    iconText: "text-amber-400",
+  },
+  DISCONNECTED: {
+    ring: "border-[#ffb4ab]/20",
+    iconWrap: "border-[#ffb4ab]/10 bg-[#ffb4ab]/5",
+    iconText: "text-[#ffb4ab]",
+  },
+};
+
+const TESTING_PHASE_MESSAGES: Partial<Record<TestStatus, string>> = {
+  "testing-latency": "Testing latency...",
+  "testing-download": "Testing download...",
+  "testing-upload": "Testing upload...",
+};
 
 const SERVICE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "Google Public DNS": Globe,
@@ -110,44 +148,6 @@ const STAT_CARDS = [
     valueColor: "text-[#dae2fd]",
     tag: "Ago",
     tagColor: "text-[#8c909f]/60",
-  },
-];
-
-const METRIC_TILES: {
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-  value: string;
-  unit: string;
-  bars: number[];
-  barColor: string;
-  glow: string;
-}[] = [
-  {
-    label: "Latency",
-    icon: Gauge,
-    value: "24",
-    unit: "ms",
-    bars: [40, 60, 55, 75, 65, 85],
-    barColor: "bg-emerald-500",
-    glow: "shadow-[0_0_8px_rgba(16,185,129,0.4)]",
-  },
-  {
-    label: "Download",
-    icon: Download,
-    value: "142.8",
-    unit: "mbps",
-    bars: [30, 45, 80, 70, 60, 72],
-    barColor: "bg-emerald-500",
-    glow: "shadow-[0_0_8px_rgba(16,185,129,0.4)]",
-  },
-  {
-    label: "Upload",
-    icon: Upload,
-    value: "38.4",
-    unit: "mbps",
-    bars: [50, 40, 35, 45, 55, 45],
-    barColor: "bg-amber-400",
-    glow: "shadow-[0_0_8px_rgba(251,191,36,0.4)]",
   },
 ];
 
@@ -236,6 +236,67 @@ export default function DashboardOverviewPage() {
     return () => clearInterval(tick);
   }, []);
 
+  const { result: speedResult, testStatus, runTest } = useSpeedTest();
+  const isTesting =
+    testStatus !== "idle" && testStatus !== "done" && testStatus !== "error";
+
+  useEffect(() => {
+    runTest();
+    const interval = setInterval(runTest, SPEED_TEST_INTERVAL_MS);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const statusStyles = STATUS_ICON_STYLES[speedResult.status];
+  const statusSubtitle = isTesting
+    ? TESTING_PHASE_MESSAGES[testStatus]
+    : speedResult.statusMessage;
+
+  const metricTiles: {
+    label: string;
+    icon: ComponentType<{ className?: string }>;
+    value: string | number;
+    unit: string;
+    bars: number[];
+    barColor: string;
+    glow: string;
+  }[] = [
+    {
+      label: "Latency",
+      icon: Gauge,
+      value:
+        testStatus === "testing-latency"
+          ? "..."
+          : (speedResult.latency ?? "--"),
+      unit: "ms",
+      bars: [40, 60, 55, 75, 65, 85],
+      barColor: "bg-emerald-500",
+      glow: "shadow-[0_0_8px_rgba(16,185,129,0.4)]",
+    },
+    {
+      label: "Download",
+      icon: Download,
+      value:
+        testStatus === "testing-download"
+          ? "..."
+          : (speedResult.download ?? "--"),
+      unit: "mbps",
+      bars: [30, 45, 80, 70, 60, 72],
+      barColor: "bg-emerald-500",
+      glow: "shadow-[0_0_8px_rgba(16,185,129,0.4)]",
+    },
+    {
+      label: "Upload",
+      icon: Upload,
+      value:
+        testStatus === "testing-upload" ? "..." : (speedResult.upload ?? "--"),
+      unit: "mbps",
+      bars: [50, 40, 35, 45, 55, 45],
+      barColor: "bg-amber-400",
+      glow: "shadow-[0_0_8px_rgba(251,191,36,0.4)]",
+    },
+  ];
+
   return (
     <>
       {/* Hero Status */}
@@ -292,26 +353,32 @@ export default function DashboardOverviewPage() {
           <div
             className={`${GLASS_CARD} flex flex-col items-center p-4 text-center lg:col-span-4`}
           >
-            <div className="relative mb-3 flex size-16 items-center justify-center rounded-full border border-emerald-500/10 bg-emerald-500/5">
-              <div className="absolute inset-0 animate-pulse rounded-full border border-emerald-500/20" />
-              <Wifi className="size-6 text-emerald-400" />
+            <div
+              className={`relative mb-3 flex size-16 items-center justify-center rounded-full border ${statusStyles.iconWrap}`}
+            >
+              <div
+                className={`absolute inset-0 animate-pulse rounded-full border ${statusStyles.ring}`}
+              />
+              <Wifi className={`size-6 ${statusStyles.iconText}`} />
             </div>
             <h4 className="mb-1 text-base font-bold tracking-tight">
-              Systems Operational
+              {STATUS_TITLES[speedResult.status]}
             </h4>
             <p className="mb-4 text-[11px] leading-tight text-[#c2c6d6]/60">
-              Gateway reports optimal handshake protocols.
+              {statusSubtitle}
             </p>
             <Link
-              className="w-full rounded-lg border border-[#adc6ff]/10 bg-[#adc6ff]/5 py-2 text-center text-[11px] font-bold tracking-widest text-[#adc6ff] uppercase transition-all hover:bg-[#adc6ff]/10 active:scale-95"
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#adc6ff]/10 bg-[#adc6ff]/5 py-2 text-center text-[11px] font-bold tracking-widest text-[#adc6ff] uppercase transition-all hover:bg-[#adc6ff]/10 active:scale-95"
               href="/dashboard/diagnostics"
+              onClick={() => runTest()}
             >
+              {isTesting && <Loader2 className="size-3 animate-spin" />}
               Full Diagnostics
             </Link>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:col-span-8">
-            {METRIC_TILES.map(
+            {metricTiles.map(
               ({ label, icon: Icon, value, unit, bars, barColor, glow }) => (
                 <div
                   className={`${GLASS_CARD} flex min-h-[130px] flex-col justify-between p-4`}
@@ -464,9 +531,7 @@ export default function DashboardOverviewPage() {
                 ({ time, message, level }, index) => (
                   <div
                     className={`flex items-center gap-3 text-[11px] ${
-                      level === "OK"
-                        ? "text-emerald-400/90"
-                        : "text-red-400/90"
+                      level === "OK" ? "text-emerald-400/90" : "text-red-400/90"
                     }`}
                     key={`${time}-${message}-${index}`}
                   >
