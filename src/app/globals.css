@@ -207,3 +207,28 @@
     animation: none;
   }
 }
+
+@keyframes status-pulse-ring {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgb(239 68 68 / 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0);
+  }
+}
+
+.status-pulse-ring {
+  animation: status-pulse-ring 2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-pulse-ring {
+    animation: none;
+  }
+}
