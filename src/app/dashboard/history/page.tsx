@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import {
   Calendar,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clock,
   CircleAlert,
   History,
   Info,
+  Megaphone,
   RefreshCw,
   ShieldCheck,
   Siren,
@@ -20,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { GLASS_CARD } from "@/components/dashboard/glass-card";
+import { loadReports, type Report } from "@/lib/reports-store";
 
 type Severity = "critical" | "warning" | "minor";
 
@@ -40,8 +43,7 @@ const SEVERITY_STYLES: Record<
     iconBg: "bg-[#ffb4ab]/10",
     iconText: "text-[#ffb4ab]",
     badge: "border-[#ffb4ab]/30 bg-[#ffb4ab]/20 text-[#ffb4ab]",
-    glow:
-      "hover:-translate-y-0.5 hover:border-[#ffb4ab]/40 hover:shadow-[0_10px_30px_-10px_rgba(239,68,68,0.3)]",
+    glow: "hover:-translate-y-0.5 hover:border-[#ffb4ab]/40 hover:shadow-[0_10px_30px_-10px_rgba(239,68,68,0.3)]",
   },
   warning: {
     label: "Warning",
@@ -49,8 +51,7 @@ const SEVERITY_STYLES: Record<
     iconBg: "bg-amber-400/10",
     iconText: "text-amber-400",
     badge: "border-amber-400/30 bg-amber-400/20 text-amber-400",
-    glow:
-      "hover:-translate-y-0.5 hover:border-amber-400/40 hover:shadow-[0_10px_30px_-10px_rgba(245,158,11,0.3)]",
+    glow: "hover:-translate-y-0.5 hover:border-amber-400/40 hover:shadow-[0_10px_30px_-10px_rgba(245,158,11,0.3)]",
   },
   minor: {
     label: "Minor",
@@ -58,8 +59,7 @@ const SEVERITY_STYLES: Record<
     iconBg: "bg-[#adc6ff]/10",
     iconText: "text-[#adc6ff]",
     badge: "border-[#adc6ff]/30 bg-[#adc6ff]/20 text-[#adc6ff]",
-    glow:
-      "hover:-translate-y-0.5 hover:border-[#adc6ff]/40 hover:shadow-[0_10px_30px_-10px_rgba(59,130,246,0.3)]",
+    glow: "hover:-translate-y-0.5 hover:border-[#adc6ff]/40 hover:shadow-[0_10px_30px_-10px_rgba(59,130,246,0.3)]",
   },
 };
 
@@ -73,7 +73,11 @@ const SEVERITY_FILTERS: { value: "all" | Severity; label: string }[] = [
 const STAT_CARDS: {
   label: string;
   value: string;
-  trend?: { icon: ComponentType<{ className?: string }>; text: string; color: string };
+  trend?: {
+    icon: ComponentType<{ className?: string }>;
+    text: string;
+    color: string;
+  };
   icon: ComponentType<{ className?: string }>;
   progress?: number;
 }[] = [
@@ -98,7 +102,7 @@ const STAT_CARDS: {
 ];
 
 type Incident = {
-  id: number;
+  id: string | number;
   title: string;
   severity: Severity;
   icon: ComponentType<{ className?: string }>;
@@ -112,7 +116,34 @@ type Incident = {
     | { kind: "root-cause"; rootCause: string; actions: string[] };
 };
 
-const INCIDENTS: Incident[] = [
+const URGENCY_TO_SEVERITY: Record<Report["urgency"], Severity> = {
+  critical: "critical",
+  high: "warning",
+  medium: "warning",
+  low: "minor",
+};
+
+function reportToIncident(report: Report): Incident {
+  const submitted = new Date(report.submittedAt);
+  return {
+    id: report.id,
+    title: report.system,
+    severity: URGENCY_TO_SEVERITY[report.urgency],
+    icon: Megaphone,
+    duration: "Ongoing",
+    resolution: "Pending Review",
+    resolutionIcon: Clock,
+    date: submitted.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+    time: `${submitted.toISOString().slice(11, 19)} UTC`,
+    detail: { kind: "paragraph", text: report.description },
+  };
+}
+
+const STATIC_INCIDENTS: Incident[] = [
   {
     id: 1,
     title: "Database Connection Timeout",
@@ -182,20 +213,29 @@ const INCIDENTS: Incident[] = [
 ];
 
 export default function HistoryPage() {
-  const [severityFilter, setSeverityFilter] = useState<"all" | Severity>(
-    "all",
+  const [incidents, setIncidents] = useState<Incident[]>(STATIC_INCIDENTS);
+  const [severityFilter, setSeverityFilter] = useState<"all" | Severity>("all");
+  const [expandedIds, setExpandedIds] = useState<Set<string | number>>(
+    new Set(),
   );
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    const submitted = loadReports();
+    if (submitted.length === 0) return;
+    // Reads localStorage, so this must stay in an effect rather than render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIncidents([...submitted.map(reportToIncident), ...STATIC_INCIDENTS]);
+  }, []);
 
   const filteredIncidents = useMemo(
     () =>
       severityFilter === "all"
-        ? INCIDENTS
-        : INCIDENTS.filter((incident) => incident.severity === severityFilter),
-    [severityFilter],
+        ? incidents
+        : incidents.filter((incident) => incident.severity === severityFilter),
+    [incidents, severityFilter],
   );
 
-  function toggleExpanded(id: number) {
+  function toggleExpanded(id: string | number) {
     setExpandedIds((current) => {
       const next = new Set(current);
       if (next.has(id)) {
@@ -216,8 +256,8 @@ export default function HistoryPage() {
               System History
             </h1>
             <p className="max-w-2xl text-[#c2c6d6]">
-              Complete audit log of system availability and incident
-              responses across the core network infrastructure.
+              Complete audit log of system availability and incident responses
+              across the core network infrastructure.
             </p>
           </div>
           <div className="flex gap-2">

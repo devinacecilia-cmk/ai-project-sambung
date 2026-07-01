@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, ChevronDown, X } from "lucide-react";
 
@@ -10,8 +10,13 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  loadSnapshot,
+  type DiagnosticsSnapshot,
+} from "@/lib/diagnostics-store";
+import { saveReport, type ReportUrgency } from "@/lib/reports-store";
 
-const SYSTEM_OPTIONS = [
+const FALLBACK_SYSTEM_OPTIONS = [
   "SAP Server",
   "GL System",
   "Internet Gateway",
@@ -24,18 +29,55 @@ const URGENCY_OPTIONS = [
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
   { value: "critical", label: "Critical" },
-] as const;
-
-type Urgency = (typeof URGENCY_OPTIONS)[number]["value"];
+] as const satisfies { value: ReportUrgency; label: string }[];
 
 export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [snap, setSnap] = useState<DiagnosticsSnapshot | null>(null);
   const [system, setSystem] = useState("");
   const [description, setDescription] = useState("");
-  const [urgency, setUrgency] = useState<Urgency>("low");
+  const [urgency, setUrgency] = useState<ReportUrgency>("low");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    // Reads localStorage, so this must stay in an effect rather than render.
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSnap(loadSnapshot());
+    }
+  }, [open]);
+
   const canSubmit = system !== "" && description.trim() !== "";
+
+  const failedServices =
+    snap?.services.filter((service) => service.status !== "CONNECTED") ?? [];
+
+  const autoCapture = {
+    timestamp: snap?.scannedAt
+      ? new Date(snap.scannedAt).toTimeString().slice(0, 8)
+      : "--:--:--",
+    failedEndpoints:
+      failedServices.map((service) => service.ip).join(", ") || "None",
+    errorCode:
+      snap?.networkStatus === "DISCONNECTED"
+        ? "NET_UNREACHABLE"
+        : snap?.networkStatus === "DEGRADED"
+          ? "HIGH_LATENCY"
+          : failedServices.length > 0
+            ? "SERVICE_UNREACHABLE"
+            : "NONE",
+    latency: snap?.latency ?? null,
+    download: snap?.download ?? null,
+    upload: snap?.upload ?? null,
+  };
+
+  const dropdownOptions =
+    snap && snap.services.length > 0
+      ? snap.services.map((service) => ({
+          value: service.name,
+          label: `${service.name} (${service.ip})`,
+        }))
+      : FALLBACK_SYSTEM_OPTIONS.map((name) => ({ value: name, label: name }));
 
   function resetForm() {
     setSystem("");
@@ -49,6 +91,7 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
     setIsSubmitting(true);
 
     setTimeout(() => {
+      saveReport({ system, description, urgency, autoCapture });
       toast.success("Report submitted", {
         description: `The on-call team has been notified about ${system}.`,
       });
@@ -107,11 +150,12 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
                 value={system}
               >
                 <option value="">Select a system...</option>
-                {SYSTEM_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
+                {dropdownOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
+                <option value="other">Other / Unknown</option>
               </select>
               <ChevronDown className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-[#c2c6d6]" />
             </div>
@@ -166,9 +210,22 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
                   Auto-captured Diagnostics
                 </span>
                 <div className="flex flex-wrap gap-x-3 font-mono text-xs text-[#c2c6d6]/80">
-                  <span>TS: 14:02:11</span>
-                  <span>IP: 192.168.1.104</span>
-                  <span className="text-emerald-400/80">Err: 503_FAIL</span>
+                  <span>TS: {autoCapture.timestamp}</span>
+                  <span>Failed: {autoCapture.failedEndpoints}</span>
+                  <span
+                    className={
+                      autoCapture.errorCode === "NONE"
+                        ? "text-emerald-400/80"
+                        : "text-[#ffb4ab]/80"
+                    }
+                  >
+                    Err: {autoCapture.errorCode}
+                  </span>
+                  <span>
+                    ↓{autoCapture.download ?? "--"}Mbps ↑
+                    {autoCapture.upload ?? "--"}Mbps Ping:{" "}
+                    {autoCapture.latency ?? "--"}ms
+                  </span>
                 </div>
               </div>
             </div>

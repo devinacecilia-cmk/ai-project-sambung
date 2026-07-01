@@ -2,19 +2,7 @@
 
 import { useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
-import {
-  Cloud,
-  Download,
-  Gauge,
-  Globe,
-  Loader2,
-  Router,
-  ShieldBan,
-  ShieldCheck,
-  Terminal,
-  Upload,
-  Wifi,
-} from "lucide-react";
+import { Download, Gauge, Loader2, Terminal, Upload, Wifi } from "lucide-react";
 
 import type {
   PingAllResponse,
@@ -23,6 +11,9 @@ import type {
 } from "@/app/api/ping-all/route";
 import { GLASS_CARD } from "@/components/dashboard/glass-card";
 import { PulseDot } from "@/components/dashboard/pulse-dot";
+import { saveSnapshot } from "@/lib/diagnostics-store";
+import { formatRelativeTime } from "@/lib/format-relative-time";
+import { getServiceIcon, toneForServiceStatus } from "@/lib/service-display";
 import { useSpeedTest, type TestStatus } from "@/hooks/use-speed-test";
 
 const SCAN_INTERVAL_MS = 30_000;
@@ -65,14 +56,6 @@ const TESTING_PHASE_MESSAGES: Partial<Record<TestStatus, string>> = {
   "testing-upload": "Testing upload...",
 };
 
-const SERVICE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
-  "Google Public DNS": Globe,
-  Cloudflare: Cloud,
-  Quad9: ShieldCheck,
-  OpenDNS: Router,
-  "AdGuard DNS": ShieldBan,
-};
-
 type Tone = "success" | "warning" | "error";
 
 const TONE_CLASSES: Record<
@@ -107,25 +90,6 @@ const TONE_CLASSES: Record<
     glow: "hover:shadow-[0_10px_40px_-15px_rgba(239,68,68,0.2)] hover:border-red-500/30",
   },
 };
-
-function toneForStatus(status: ServiceResult["status"]): Tone {
-  if (status === "CONNECTED") return "success";
-  if (status === "TIMEOUT") return "warning";
-  return "error";
-}
-
-function formatRelativeTime(iso: string, now: number): string {
-  const diffSeconds = Math.max(
-    0,
-    Math.round((now - new Date(iso).getTime()) / 1000),
-  );
-  if (diffSeconds < 5) return "JUST NOW";
-  if (diffSeconds < 60) return `${diffSeconds}S AGO`;
-  const diffMinutes = Math.round(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}M AGO`;
-  const diffHours = Math.round(diffMinutes / 60);
-  return `${diffHours}H AGO`;
-}
 
 const STAT_CARDS = [
   {
@@ -216,6 +180,15 @@ export default function DashboardOverviewPage() {
             ACTIVITY_FEED_LIMIT,
           ),
         );
+        saveSnapshot({
+          services: data.results.map((result) => ({
+            name: result.name,
+            ip: result.ip,
+            status: result.status,
+            latency: result.latency,
+          })),
+          scannedAt: data.scannedAt,
+        });
       } catch (error) {
         console.error("Scan failed", error);
       } finally {
@@ -246,6 +219,26 @@ export default function DashboardOverviewPage() {
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (testStatus !== "done") return;
+    // Only stamp "last healthy" when the speed test AND every monitored
+    // service agree things are fine, so a fast localhost speed test doesn't
+    // mask a real service outage found by the ping scan.
+    const allServicesHealthy = services.every(
+      (service) => service.status === "CONNECTED",
+    );
+    saveSnapshot({
+      latency: speedResult.latency,
+      download: speedResult.download,
+      upload: speedResult.upload,
+      networkStatus: speedResult.status,
+      networkStatusMessage: speedResult.statusMessage,
+      ...(speedResult.status === "OPERATIONAL" && allServicesHealthy
+        ? { lastHealthyAt: speedResult.testedAt ?? new Date().toISOString() }
+        : {}),
+    });
+  }, [testStatus, speedResult, services]);
 
   const statusStyles = STATUS_ICON_STYLES[speedResult.status];
   const statusSubtitle = isTesting
@@ -451,8 +444,8 @@ export default function DashboardOverviewPage() {
             </div>
           ) : (
             services.map((service) => {
-              const Icon = SERVICE_ICONS[service.name] ?? Globe;
-              const tone = toneForStatus(service.status);
+              const Icon = getServiceIcon(service.name);
+              const tone = toneForServiceStatus(service.status);
               const toneClasses = TONE_CLASSES[tone];
               const latencyText =
                 service.latency !== null ? `${service.latency} ms` : "—";
