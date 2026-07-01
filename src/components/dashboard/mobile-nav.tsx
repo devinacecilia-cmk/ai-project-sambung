@@ -11,7 +11,7 @@ const MOBILE_NAV_ITEMS: {
   href: string | null;
 }[] = [
   { icon: HeartPulse, label: "Status", href: "/dashboard" },
-  { icon: BookOpen, label: "Guide", href: null },
+  { icon: BookOpen, label: "Guide", href: "/dashboard/troubleshoot" },
   { icon: Megaphone, label: "Report", href: null },
   { icon: User, label: "Me", href: null },
 ];

@@ -21,7 +21,7 @@ const NAV_ITEMS: {
 }[] = [
   { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
   { icon: Wrench, label: "Diagnostics", href: "/dashboard/diagnostics" },
-  { icon: HelpCircle, label: "Troubleshoot", href: null },
+  { icon: HelpCircle, label: "Troubleshoot", href: "/dashboard/troubleshoot" },
   { icon: Settings, label: "Settings", href: null },
 ];
 
