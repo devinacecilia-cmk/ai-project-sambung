@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Menu, RefreshCw, UserCircle } from "lucide-react";
+import { Menu, RefreshCw, UserCircle } from "lucide-react";
 
 import { ReportIssueDialog } from "@/components/dashboard/report-issue-dialog";
+import { useScan } from "@/components/dashboard/scan-provider";
 
 const NAV_LINKS = [
   { label: "Dashboard", href: "/dashboard" },
@@ -13,6 +14,7 @@ const NAV_LINKS = [
 
 export function Topbar() {
   const pathname = usePathname();
+  const { isScanning, triggerScan } = useScan();
 
   return (
     <header className="fixed top-0 right-0 left-0 z-30 flex items-center justify-between border-b border-[#424754]/20 bg-[#171f33]/30 px-6 py-3 backdrop-blur-xl lg:left-64">
@@ -47,13 +49,6 @@ export function Topbar() {
               </Link>
             );
           })}
-          <button
-            className="text-sm font-medium text-[#c2c6d6] transition-colors duration-200 hover:text-[#dae2fd]"
-            title="Coming soon"
-            type="button"
-          >
-            Alerts
-          </button>
         </div>
         <ReportIssueDialog
           trigger={
@@ -68,20 +63,14 @@ export function Topbar() {
         <div className="flex gap-2">
           <button
             aria-label="Refresh"
-            className="rounded-full p-2 text-[#c2c6d6] transition-colors hover:bg-white/5"
-            title="Coming soon"
+            className="rounded-full p-2 text-[#c2c6d6] transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isScanning}
+            onClick={() => triggerScan()}
             type="button"
           >
-            <RefreshCw className="size-5" />
-          </button>
-          <button
-            aria-label="Notifications"
-            className="relative rounded-full p-2 text-[#c2c6d6] transition-colors hover:bg-white/5"
-            title="Coming soon"
-            type="button"
-          >
-            <Bell className="size-5" />
-            <span className="absolute top-2.5 right-2.5 size-1.5 rounded-full bg-[#ffb4ab] ring-2 ring-[#020617]" />
+            <RefreshCw
+              className={`size-5 ${isScanning ? "animate-spin" : ""}`}
+            />
           </button>
           <button
             aria-label="Account"

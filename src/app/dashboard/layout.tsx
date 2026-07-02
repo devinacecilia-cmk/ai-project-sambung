@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { ScanProvider } from "@/components/dashboard/scan-provider";
 import { ShaderBackground } from "@/components/dashboard/shader-background";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
@@ -49,14 +50,16 @@ export default function DashboardLayout({
     : "stable";
 
   return (
-    <div className="isolate min-h-screen bg-[#020617] font-sans text-[#dae2fd]">
-      <ShaderBackground />
-      <Sidebar onLogout={handleLogout} pulseStatus={pulseStatus} />
-      <Topbar />
-      <main className="min-h-screen pt-24 pr-6 pb-24 lg:pr-8 lg:pb-8 lg:pl-72">
-        <div className="mx-auto max-w-6xl space-y-6">{children}</div>
-      </main>
-      <MobileNav />
-    </div>
+    <ScanProvider>
+      <div className="isolate min-h-screen bg-[#020617] font-sans text-[#dae2fd]">
+        <ShaderBackground />
+        <Sidebar onLogout={handleLogout} pulseStatus={pulseStatus} />
+        <Topbar />
+        <main className="min-h-screen pt-24 pr-6 pb-24 lg:pr-8 lg:pb-8 lg:pl-72">
+          <div className="mx-auto max-w-6xl space-y-6">{children}</div>
+        </main>
+        <MobileNav />
+      </div>
+    </ScanProvider>
   );
 }

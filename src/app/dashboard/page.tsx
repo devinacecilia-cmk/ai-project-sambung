@@ -4,20 +4,14 @@ import { useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
 import { Download, Gauge, Loader2, Terminal, Upload, Wifi } from "lucide-react";
 
-import type {
-  PingAllResponse,
-  ServiceLogEntry,
-  ServiceResult,
-} from "@/app/api/ping-all/route";
 import { GLASS_CARD } from "@/components/dashboard/glass-card";
 import { PulseDot } from "@/components/dashboard/pulse-dot";
+import { useScan } from "@/components/dashboard/scan-provider";
 import { saveSnapshot } from "@/lib/diagnostics-store";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import { getServiceIcon, toneForServiceStatus } from "@/lib/service-display";
 import { useSpeedTest, type TestStatus } from "@/hooks/use-speed-test";
 
-const SCAN_INTERVAL_MS = 30_000;
-const ACTIVITY_FEED_LIMIT = 20;
 const SPEED_TEST_INTERVAL_MS = 5 * 60_000;
 
 const STATUS_TITLES: Record<
@@ -135,52 +129,8 @@ function SambungHero() {
 }
 
 export default function DashboardOverviewPage() {
-  const [services, setServices] = useState<ServiceResult[]>([]);
-  const [activityFeed, setActivityFeed] = useState<ServiceLogEntry[]>([]);
-  const [lastScan, setLastScan] = useState<string | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
+  const { services, activityFeed, lastScan, isScanning } = useScan();
   const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function runScan() {
-      setIsScanning(true);
-      try {
-        const res = await fetch("/api/ping-all");
-        const data: PingAllResponse = await res.json();
-        if (cancelled) return;
-        setServices(data.results);
-        setLastScan(data.scannedAt);
-        setActivityFeed((previous) =>
-          [...data.results.map((result) => result.logEntry), ...previous].slice(
-            0,
-            ACTIVITY_FEED_LIMIT,
-          ),
-        );
-        saveSnapshot({
-          services: data.results.map((result) => ({
-            name: result.name,
-            ip: result.ip,
-            status: result.status,
-            latency: result.latency,
-          })),
-          scannedAt: data.scannedAt,
-        });
-      } catch (error) {
-        console.error("Scan failed", error);
-      } finally {
-        if (!cancelled) setIsScanning(false);
-      }
-    }
-
-    runScan();
-    const interval = setInterval(runScan, SCAN_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
 
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 1000);
