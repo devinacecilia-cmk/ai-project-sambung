@@ -34,6 +34,7 @@ export default function DashboardLayout({
 
   function handleLogout() {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    window.localStorage.removeItem("nhm-user");
     router.replace("/login");
   }
 

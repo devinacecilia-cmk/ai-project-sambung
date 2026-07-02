@@ -7,6 +7,7 @@ import { Eye, EyeOff, IdCard, Loader2, Lock, LogIn } from "lucide-react";
 const VALID_USERNAME = "admin";
 const VALID_PASSWORD = "123";
 const AUTH_STORAGE_KEY = "nhm-auth";
+const USER_STORAGE_KEY = "nhm-user";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function LoginPage() {
     setTimeout(() => {
       if (username === VALID_USERNAME && password === VALID_PASSWORD) {
         window.localStorage.setItem(AUTH_STORAGE_KEY, "true");
+        window.localStorage.setItem(USER_STORAGE_KEY, username);
         router.push("/dashboard");
         return;
       }

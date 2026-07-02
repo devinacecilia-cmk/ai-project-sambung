@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, RefreshCw, UserCircle } from "lucide-react";
+import { Menu, RefreshCw } from "lucide-react";
 
+import { NavbarAccount } from "@/components/dashboard/navbar-account";
 import { ReportIssueDialog } from "@/components/dashboard/report-issue-dialog";
 import { useScan } from "@/components/dashboard/scan-provider";
 
@@ -72,14 +73,7 @@ export function Topbar() {
               className={`size-5 ${isScanning ? "animate-spin" : ""}`}
             />
           </button>
-          <button
-            aria-label="Account"
-            className="rounded-full p-2 text-[#c2c6d6] transition-colors hover:bg-white/5"
-            title="Coming soon"
-            type="button"
-          >
-            <UserCircle className="size-5" />
-          </button>
+          <NavbarAccount />
         </div>
       </div>
     </header>

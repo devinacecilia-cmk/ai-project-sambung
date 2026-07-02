@@ -9,7 +9,7 @@ import {
   LogOut,
   // Settings,
   Wrench,
-  Zap,
+  // Zap,
 } from "lucide-react";
 
 import { PulseDot } from "@/components/dashboard/pulse-dot";
@@ -83,14 +83,14 @@ export function Sidebar({
         })}
       </nav>
       <div className="space-y-4 p-4">
-        <button
+        {/* <button
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#adc6ff] py-3 font-bold text-[#00285d] shadow-[0_4px_0_0_rgba(0,0,0,0.3),0_8px_15px_-5px_rgba(173,198,255,0.2)] transition-all hover:brightness-110 active:translate-y-0.5 active:shadow-[0_2px_0_0_rgba(0,0,0,0.3)]"
           title="Coming soon"
           type="button"
         >
           <Zap className="size-4" />
           Run Full Scan
-        </button>
+        </button> */}
         <div className="border-t border-[#424754]/30 pt-4">
           <button
             className="flex w-full items-center px-4 py-2 text-[#c2c6d6] transition-all hover:text-[#dae2fd]"
