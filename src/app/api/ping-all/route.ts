@@ -8,6 +8,7 @@ interface MonitoredService {
   name: string;
   host: string;
   port: number;
+  note?: string;
 }
 
 // Fallback used only if PING_SERVICES isn't set (e.g. .env.local missing).
@@ -24,7 +25,9 @@ const DEFAULT_SERVICES: MonitoredService[] = [
 
 // Reads PING_1_NAME/PING_1_HOST/PING_1_PORT, PING_2_NAME/..., etc. from env,
 // stopping at the first missing index. Falls back to DEFAULT_SERVICES if
-// none are set.
+// none are set. PING_{i}_NOTE is optional free text (e.g. "Requires VPN")
+// surfaced to the AI diagnostic report so it can explain host-specific
+// failures instead of guessing at generic causes.
 function loadServices(): MonitoredService[] {
   const services: MonitoredService[] = [];
 
@@ -39,7 +42,8 @@ function loadServices(): MonitoredService[] {
       console.error(`Invalid PING_${i}_PORT env var "${port}", skipping`);
       continue;
     }
-    services.push({ name, host, port: portNumber });
+    const note = process.env[`PING_${i}_NOTE`];
+    services.push({ name, host, port: portNumber, note: note || undefined });
   }
 
   return services.length > 0 ? services : DEFAULT_SERVICES;
@@ -60,6 +64,7 @@ export interface ServiceResult {
   latency: number | null;
   checkedAt: string;
   logEntry: ServiceLogEntry;
+  note?: string;
 }
 
 export interface PingAllResponse {
@@ -81,6 +86,7 @@ export async function GET() {
         status,
         latency,
         checkedAt: now.toISOString(),
+        note: service.note,
         logEntry: {
           time: timeStr,
           message:

@@ -10,6 +10,10 @@ export interface SnapshotService {
   host: string;
   status: ServiceStatus;
   latency: number | null;
+  // Optional operator-supplied context (e.g. "Requires VPN") surfaced to the
+  // AI diagnostic report so it can explain host-specific failures instead of
+  // guessing at generic causes. Set via PING_{i}_NOTE in .env.local.
+  note?: string;
 }
 
 export interface DiagnosticsSnapshot {

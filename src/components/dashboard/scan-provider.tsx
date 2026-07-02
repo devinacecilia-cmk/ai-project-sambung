@@ -60,6 +60,7 @@ export function ScanProvider({ children }: { children: ReactNode }) {
           host: result.host,
           status: result.status,
           latency: result.latency,
+          note: result.note,
         })),
         scannedAt: data.scannedAt,
       });
@@ -72,10 +73,12 @@ export function ScanProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // Kicks off the first scan on mount; setIsScanning(true) inside runScan
+    // runs synchronously before the first await, which is intentional here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     runScan();
     const interval = setInterval(runScan, SCAN_INTERVAL_MS);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

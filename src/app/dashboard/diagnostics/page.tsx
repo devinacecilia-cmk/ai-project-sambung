@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ComponentType, type ReactNode } from "react";
-import { AlertTriangle, Brain, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, Brain, CheckCircle2, Loader2, Sparkles } from "lucide-react";
 
 import { GLASS_CARD } from "@/components/dashboard/glass-card";
 import {
@@ -254,6 +254,12 @@ function computeUptimePercent(
 export default function DiagnosticDetailPage() {
   const [snap, setSnap] = useState<DiagnosticsSnapshot | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [aiReport, setAiReport] = useState<string | null>(null);
+  const [aiReportScannedAt, setAiReportScannedAt] = useState<string | null>(
+    null,
+  );
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     // Reads localStorage, so this must stay in an effect: doing it during
@@ -268,6 +274,39 @@ export default function DiagnosticDetailPage() {
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tick);
   }, []);
+
+  async function handleGenerateAiReport() {
+    if (!snap) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const res = await fetch("/api/diagnostics/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(snap),
+      });
+      const data = (await res.json()) as { report?: string; error?: string };
+      if (!res.ok || !data.report) {
+        throw new Error(data.error ?? "Failed to generate report");
+      }
+      setAiReport(data.report);
+      setAiReportScannedAt(snap.scannedAt);
+    } catch (err) {
+      setAiError(
+        err instanceof Error ? err.message : "Failed to generate report",
+      );
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  // Once generated, the report stays visible until regenerated — the
+  // dashboard's background auto-scan (every 30s) would otherwise silently
+  // hide it seconds after the user clicked to generate it. We flag it as
+  // stale instead so the user can judge whether to regenerate.
+  const aiReportIsStale = Boolean(
+    aiReport && aiReportScannedAt !== snap?.scannedAt,
+  );
 
   const failedServices =
     snap?.services.filter((s) => s.status !== "CONNECTED") ?? [];
@@ -341,19 +380,66 @@ export default function DiagnosticDetailPage() {
             <div className="pointer-events-none absolute top-0 right-0 p-6 opacity-5">
               <Brain className="size-24" />
             </div>
-            <div className="mb-4 flex items-center gap-3">
-              <Brain className="size-8 text-[#adc6ff]" />
-              <h2 className="text-xl font-semibold text-[#dae2fd]">
-                Diagnosis Engine Interpretation
-              </h2>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Brain className="size-8 text-[#adc6ff]" />
+                <h2 className="text-xl font-semibold text-[#dae2fd]">
+                  Diagnosis Engine Interpretation
+                </h2>
+              </div>
+              <button
+                className="flex items-center gap-2 rounded-lg border border-[#adc6ff]/20 bg-[#adc6ff]/10 px-3 py-1.5 text-xs font-semibold text-[#adc6ff] transition-colors hover:bg-[#adc6ff]/20 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!snap || aiLoading}
+                onClick={handleGenerateAiReport}
+                type="button"
+              >
+                {aiLoading ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3.5" />
+                )}
+                {aiLoading
+                  ? "Generating…"
+                  : aiReport
+                    ? "Regenerate AI Report"
+                    : "Generate AI Report"}
+              </button>
             </div>
             <div className="rounded-xl border border-white/5 bg-[#222a3d]/30 p-4 backdrop-blur-md">
-              <p className="leading-relaxed text-[#dae2fd]">
-                {snap
-                  ? getDiagnosisText(snap, failedServices)
-                  : "No scan data yet. Run a scan from the Dashboard to populate live diagnostics."}
-              </p>
-              {snap && (
+              {aiReport ? (
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-[#c0c1ff] uppercase">
+                      <Sparkles className="size-3.5" />
+                      AI-Generated Report
+                    </div>
+                    {aiReportIsStale && (
+                      <span className="text-xs text-amber-400">
+                        A newer scan has landed — regenerate for the latest
+                        data
+                      </span>
+                    )}
+                  </div>
+                  <p className="leading-relaxed whitespace-pre-line text-[#dae2fd]">
+                    {aiReport}
+                  </p>
+                </div>
+              ) : (
+                <p className="leading-relaxed text-[#dae2fd]">
+                  {snap
+                    ? getDiagnosisText(snap, failedServices)
+                    : "No scan data yet. Run a scan from the Dashboard to populate live diagnostics."}
+                </p>
+              )}
+              {aiError && (
+                <p className="mt-3 text-sm text-[#ffb4ab]">
+                  Couldn&apos;t generate AI report: {aiError}.
+                  {aiReport
+                    ? " Showing the previously generated report."
+                    : " Showing the rule-based summary instead."}
+                </p>
+              )}
+              {snap && !aiReport && (
                 <div className="mt-4 flex items-center gap-2 rounded-lg border border-[#c0c1ff]/10 bg-[#3131c0]/20 px-4 py-2">
                   <span className="text-xs font-bold tracking-widest text-[#c0c1ff] uppercase">
                     Logic Insight
