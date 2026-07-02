@@ -2,9 +2,9 @@ import { env } from "@/lib/env";
 import type { NavItem } from "@/types/nav";
 
 export const siteConfig = {
-  name: "Next.js Starter Kit",
+  name: "Sambung",
   description:
-    "A production-minded Next.js boilerplate for landing pages, portfolios, dashboards, backoffices, games, blogs, and product apps.",
+    "Sambung is a Network Health Monitor with real-time speed tests, latency checks, and connection diagnostics in one dashboard.",
   url: env.NEXT_PUBLIC_APP_URL,
   ogImage: "/og",
   author: "Open Source",
