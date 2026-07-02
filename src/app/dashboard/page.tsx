@@ -91,68 +91,46 @@ const TONE_CLASSES: Record<
   },
 };
 
-const STAT_CARDS = [
-  {
-    label: "Uptime Score",
-    value: "99.98%",
-    valueColor: "text-emerald-400",
-    tag: "Stable",
-    tagColor: "text-emerald-400/60",
-  },
-  {
-    label: "Open Incidents",
-    value: "4",
-    valueColor: "text-[#ffb4ab]",
-    tag: "Critical",
-    tagColor: "text-[#ffb4ab]/60",
-  },
-  {
-    label: "Last Incident",
-    value: "14h",
-    valueColor: "text-[#dae2fd]",
-    tag: "Ago",
-    tagColor: "text-[#8c909f]/60",
-  },
+const SAMBUNG_WORDS: (
+  { letter: string; rest: string } | { literal: string }
+)[] = [
+  { letter: "S", rest: "ystem" },
+  { letter: "A", rest: "ccess" },
+  { letter: "M", rest: "onitoring" },
+  { literal: "&" },
+  { letter: "B", rest: "asic" },
+  { letter: "U", rest: "ser" },
+  { letter: "N", rest: "etwork" },
+  { letter: "G", rest: "uide" },
 ];
 
-function HealthRing({ percent }: { percent: number }) {
-  const radius = 42;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - percent / 100);
-
+function SambungHero() {
   return (
-    <div className="relative flex size-28 items-center justify-center">
-      <svg className="size-28 -rotate-90" viewBox="0 0 100 100">
-        <circle
-          cx="50"
-          cy="50"
-          fill="none"
-          r={radius}
-          stroke="rgba(255,255,255,0.06)"
-          strokeWidth="8"
-        />
-        <circle
-          className="drop-shadow-[0_0_8px_rgba(52,211,153,0.6)] transition-[stroke-dashoffset] duration-1000 ease-out"
-          cx="50"
-          cy="50"
-          fill="none"
-          r={radius}
-          stroke="#34d399"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          strokeWidth="8"
-        />
-      </svg>
-      <div className="absolute flex flex-col items-center">
-        <span className="text-3xl font-bold text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">
-          {percent}%
-        </span>
-        <span className="text-[10px] font-bold tracking-tighter text-emerald-400/70 uppercase">
-          Global
-        </span>
-      </div>
-    </div>
+    <header className="border-b border-white/5 pb-6">
+      <h1 className="text-3xl font-bold tracking-tight text-[#dae2fd] sm:text-4xl">
+        SAMBUNG
+      </h1>
+      <p className="mt-2 font-mono text-sm text-[#8c909f] sm:text-base">
+        {SAMBUNG_WORDS.map((word, index) => (
+          <span key={index}>
+            {"literal" in word ? (
+              <span className="text-[#8c909f]">{word.literal}</span>
+            ) : (
+              <>
+                <span className="font-bold text-emerald-400">
+                  {word.letter}
+                </span>
+                <span>{word.rest}</span>
+              </>
+            )}
+            {index < SAMBUNG_WORDS.length - 1 ? " " : ""}
+          </span>
+        ))}
+      </p>
+      <p className="mt-2 text-xs tracking-widest text-[#8c909f]/60 uppercase">
+        Central Mega Kencana · Enterprise Network Monitoring
+      </p>
+    </header>
   );
 }
 
@@ -290,34 +268,68 @@ export default function DashboardOverviewPage() {
     },
   ];
 
+  const connectedServices = services.filter(
+    (service) => service.status === "CONNECTED",
+  );
+  const hasServices = services.length > 0;
+  const connectedLatencies = connectedServices
+    .map((service) => service.latency)
+    .filter((latency): latency is number => latency !== null);
+  const avgResponseTime =
+    connectedLatencies.length > 0
+      ? Math.round(
+          connectedLatencies.reduce((sum, latency) => sum + latency, 0) /
+            connectedLatencies.length,
+        )
+      : null;
+  const allServicesOnline =
+    hasServices && connectedServices.length === services.length;
+
+  const liveStatCards: {
+    label: string;
+    value: string;
+    valueColor: string;
+    tag?: string;
+    tagColor?: string;
+  }[] = [
+    {
+      label: "Services Online",
+      value: hasServices
+        ? `${connectedServices.length} / ${services.length}`
+        : "—",
+      valueColor: !hasServices
+        ? "text-[#dae2fd]"
+        : allServicesOnline
+          ? "text-emerald-400"
+          : connectedServices.length === 0
+            ? "text-[#ffb4ab]"
+            : "text-amber-400",
+      tag: hasServices
+        ? allServicesOnline
+          ? "All Online"
+          : `${services.length - connectedServices.length} Down`
+        : undefined,
+      tagColor: allServicesOnline ? "text-emerald-400/60" : "text-[#ffb4ab]/60",
+    },
+    {
+      label: "Avg Response Time",
+      value: avgResponseTime !== null ? `${avgResponseTime} ms` : "—",
+      valueColor: "text-[#dae2fd]",
+    },
+    {
+      label: "Last Scan",
+      value: lastScan ? formatRelativeTime(lastScan, now) : "—",
+      valueColor: "text-[#dae2fd]",
+    },
+  ];
+
   return (
     <>
-      {/* Hero Status */}
-      <section className={`${GLASS_CARD} overflow-hidden`}>
-        <div className="flex flex-col items-stretch md:flex-row md:items-center">
-          <div className="flex-1 p-6">
-            <h2 className="mb-1 text-2xl font-semibold text-[#d8e2ff]">
-              System Pulse
-            </h2>
-            <p className="max-w-lg leading-relaxed text-[#c2c6d6]/90">
-              <span className="font-semibold text-[#d8e2ff]">SAMBUNG:</span>{" "}
-              Enterprise infrastructure monitoring active. Tracking{" "}
-              <span className="font-medium text-white">12 nodes</span> across{" "}
-              <span className="font-medium text-white">3 regions</span>.
-            </p>
-          </div>
-          <div className="flex min-w-[220px] flex-col items-center justify-center border-[#424754]/20 bg-[#adc6ff]/5 p-6 md:border-l">
-            <HealthRing percent={82} />
-            <div className="mt-2 h-1 w-32 overflow-hidden rounded-full bg-slate-800/50">
-              <div className="h-full w-[82%] bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
-            </div>
-          </div>
-        </div>
-      </section>
+      <SambungHero />
 
       {/* Monitoring Grid */}
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {STAT_CARDS.map(({ label, value, valueColor, tag, tagColor }) => (
+        {liveStatCards.map(({ label, value, valueColor, tag, tagColor }) => (
           <div
             className={`${GLASS_CARD} flex min-h-[100px] flex-col justify-between p-4`}
             key={label}
@@ -329,9 +341,11 @@ export default function DashboardOverviewPage() {
               <span className={`font-mono text-2xl font-bold ${valueColor}`}>
                 {value}
               </span>
-              <span className={`text-[10px] font-bold uppercase ${tagColor}`}>
-                {tag}
-              </span>
+              {tag && (
+                <span className={`text-[10px] font-bold uppercase ${tagColor}`}>
+                  {tag}
+                </span>
+              )}
             </div>
           </div>
         ))}
