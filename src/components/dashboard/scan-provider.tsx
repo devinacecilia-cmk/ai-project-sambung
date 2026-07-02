@@ -57,7 +57,7 @@ export function ScanProvider({ children }: { children: ReactNode }) {
       saveSnapshot({
         services: data.results.map((result) => ({
           name: result.name,
-          ip: result.ip,
+          host: result.host,
           status: result.status,
           latency: result.latency,
         })),

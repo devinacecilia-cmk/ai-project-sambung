@@ -7,7 +7,7 @@ export type ServiceStatus = "CONNECTED" | "TIMEOUT" | "ERROR";
 
 export interface SnapshotService {
   name: string;
-  ip: string;
+  host: string;
   status: ServiceStatus;
   latency: number | null;
 }

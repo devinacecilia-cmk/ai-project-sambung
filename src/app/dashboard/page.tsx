@@ -428,7 +428,7 @@ export default function DashboardOverviewPage() {
                     <h4 className="truncate text-base font-bold">
                       {service.name}
                     </h4>
-                    <p className="text-xs text-[#c2c6d6]/70">{service.ip}</p>
+                    <p className="text-xs text-[#c2c6d6]/70">{service.host}</p>
                   </div>
                   <div className="hidden flex-1 justify-center md:flex">
                     <div

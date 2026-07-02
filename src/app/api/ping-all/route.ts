@@ -4,15 +4,48 @@ import { tcpPing, type PingStatus } from "@/lib/tcp-ping";
 
 export const runtime = "nodejs";
 
-// Swap this list for your internal hostnames/IPs and their appropriate
-// ports (e.g. 80, 443, 8080) once monitoring real systems.
-const SERVICES = [
-  { name: "Google Public DNS", ip: "8.8.8.8", port: 53 },
-  { name: "Cloudflare", ip: "1.1.1.1", port: 53 },
-  { name: "Quad9", ip: "9.9.9.9", port: 53 },
-  { name: "OpenDNS", ip: "208.67.222.222", port: 53 /* 443 */ },
-  { name: "AdGuard DNS", ip: "94.140.14.14", port: 53 },
+interface MonitoredService {
+  name: string;
+  host: string;
+  port: number;
+}
+
+// Fallback used only if PING_SERVICES isn't set (e.g. .env.local missing).
+// `host` accepts either an IP literal or an FQDN — tcpPing resolves DNS
+// automatically. Configure the real list via PING_SERVICES so internal
+// hostnames don't need to live in committed source.
+const DEFAULT_SERVICES: MonitoredService[] = [
+  { name: "Google Public DNS", host: "dns.google", port: 53 },
+  { name: "Cloudflare", host: "one.one.one.one", port: 53 },
+  { name: "Quad9", host: "dns.quad9.net", port: 53 },
+  { name: "OpenDNS", host: "resolver1.opendns.com", port: 53 },
+  { name: "AdGuard DNS", host: "dns.adguard.com", port: 53 },
 ];
+
+// Reads PING_1_NAME/PING_1_HOST/PING_1_PORT, PING_2_NAME/..., etc. from env,
+// stopping at the first missing index. Falls back to DEFAULT_SERVICES if
+// none are set.
+function loadServices(): MonitoredService[] {
+  const services: MonitoredService[] = [];
+
+  for (let i = 1; ; i++) {
+    const name = process.env[`PING_${i}_NAME`];
+    const host = process.env[`PING_${i}_HOST`];
+    const port = process.env[`PING_${i}_PORT`];
+    if (!name || !host || !port) break;
+
+    const portNumber = Number(port);
+    if (Number.isNaN(portNumber)) {
+      console.error(`Invalid PING_${i}_PORT env var "${port}", skipping`);
+      continue;
+    }
+    services.push({ name, host, port: portNumber });
+  }
+
+  return services.length > 0 ? services : DEFAULT_SERVICES;
+}
+
+const SERVICES = loadServices();
 
 export interface ServiceLogEntry {
   time: string;
@@ -22,7 +55,7 @@ export interface ServiceLogEntry {
 
 export interface ServiceResult {
   name: string;
-  ip: string;
+  host: string;
   status: PingStatus;
   latency: number | null;
   checkedAt: string;
@@ -40,11 +73,11 @@ export async function GET() {
 
   const results = await Promise.all(
     SERVICES.map(async (service): Promise<ServiceResult> => {
-      const { status, latency } = await tcpPing(service.ip, service.port);
+      const { status, latency } = await tcpPing(service.host, service.port);
 
       return {
         name: service.name,
-        ip: service.ip,
+        host: service.host,
         status,
         latency,
         checkedAt: now.toISOString(),
@@ -52,8 +85,8 @@ export async function GET() {
           time: timeStr,
           message:
             status === "CONNECTED"
-              ? `PING: ${service.name} (${service.ip}) - REACHABLE [${latency}ms]`
-              : `ERR: ${service.name} (${service.ip}) - ${status}`,
+              ? `PING: ${service.name} (${service.host}) - REACHABLE [${latency}ms]`
+              : `ERR: ${service.name} (${service.host}) - ${status}`,
           level: status === "CONNECTED" ? "OK" : "CRIT",
         },
       };

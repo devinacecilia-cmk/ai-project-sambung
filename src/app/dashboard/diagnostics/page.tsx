@@ -461,7 +461,7 @@ export default function DiagnosticDetailPage() {
                             ? "border-amber-400/20 bg-amber-400/10 hover:bg-amber-400/20"
                             : "border-white/5 bg-[#171f33]/20 hover:bg-white/5"
                       }`}
-                      key={service.ip}
+                      key={service.host}
                     >
                       <div className="flex items-center gap-2">
                         <Icon

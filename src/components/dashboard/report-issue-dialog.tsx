@@ -66,7 +66,7 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
       ? new Date(snap.scannedAt).toTimeString().slice(0, 8)
       : "--:--:--",
     failedEndpoints:
-      failedServices.map((service) => service.ip).join(", ") || "None",
+      failedServices.map((service) => service.host).join(", ") || "None",
     errorCode:
       snap?.networkStatus === "DISCONNECTED"
         ? "NET_UNREACHABLE"
@@ -84,7 +84,7 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
     snap && snap.services.length > 0
       ? snap.services.map((service) => ({
           value: service.name,
-          label: `${service.name} (${service.ip})`,
+          label: `${service.name} (${service.host})`,
         }))
       : FALLBACK_SYSTEM_OPTIONS.map((name) => ({ value: name, label: name }));
 
