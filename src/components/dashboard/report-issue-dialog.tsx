@@ -38,6 +38,8 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
   const [description, setDescription] = useState("");
   const [urgency, setUrgency] = useState<ReportUrgency>("low");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [systemError, setSystemError] = useState("");
+  const [descriptionError, setDescriptionError] = useState("");
 
   useEffect(() => {
     // Reads localStorage, so this must stay in an effect rather than render.
@@ -47,10 +49,17 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
     }
   }, [open]);
 
-  const canSubmit = system !== "" && description.trim() !== "";
-
   const failedServices =
     snap?.services.filter((service) => service.status !== "CONNECTED") ?? [];
+  const failedCount = failedServices.length;
+
+  const descriptionLength = description.length;
+  const counterColor =
+    descriptionLength >= 480
+      ? "text-red-400"
+      : descriptionLength > 400
+        ? "text-amber-400"
+        : "text-[#8c909f]";
 
   const autoCapture = {
     timestamp: snap?.scannedAt
@@ -83,11 +92,23 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
     setSystem("");
     setDescription("");
     setUrgency("low");
+    setSystemError("");
+    setDescriptionError("");
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canSubmit) return;
+
+    const nextSystemError =
+      system === "" ? "Please select an affected system." : "";
+    const nextDescriptionError =
+      description.trim() === ""
+        ? "Please describe the problem before submitting."
+        : "";
+    setSystemError(nextSystemError);
+    setDescriptionError(nextDescriptionError);
+    if (nextSystemError || nextDescriptionError) return;
+
     setIsSubmitting(true);
 
     setTimeout(() => {
@@ -96,8 +117,10 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
         description: `The on-call team has been notified about ${system}.`,
       });
       setIsSubmitting(false);
-      setOpen(false);
-      resetForm();
+      setTimeout(() => {
+        setOpen(false);
+        resetForm();
+      }, 1500);
     }, 600);
   }
 
@@ -144,9 +167,16 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
             </label>
             <div className="relative">
               <select
-                className="w-full cursor-pointer appearance-none rounded-t-lg border-b-2 border-[#424754] bg-[#1e293b]/60 px-4 py-3 text-[#dae2fd] transition-all focus:border-[#adc6ff] focus:ring-0 focus:outline-none"
+                className={`w-full cursor-pointer appearance-none rounded-t-lg border-b-2 bg-[#1e293b]/60 px-4 py-3 text-[#dae2fd] transition-all focus:ring-0 focus:outline-none ${
+                  systemError
+                    ? "border-red-500 focus:border-red-500"
+                    : "border-[#424754] focus:border-[#adc6ff]"
+                }`}
                 id="report-system"
-                onChange={(event) => setSystem(event.target.value)}
+                onChange={(event) => {
+                  setSystem(event.target.value);
+                  setSystemError("");
+                }}
                 value={system}
               >
                 <option value="">Select a system...</option>
@@ -159,6 +189,9 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
               </select>
               <ChevronDown className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-[#c2c6d6]" />
             </div>
+            {systemError ? (
+              <p className="text-xs font-medium text-red-400">{systemError}</p>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-1">
@@ -169,13 +202,33 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
               Describe the problem
             </label>
             <textarea
-              className="w-full resize-none rounded-t-lg border-b-2 border-[#424754] bg-[#1e293b]/60 px-4 py-3 text-[#dae2fd] transition-all placeholder:text-[#8c909f]/50 focus:border-[#adc6ff] focus:ring-0 focus:outline-none"
+              className={`w-full resize-none rounded-t-lg border-b-2 bg-[#1e293b]/60 px-4 py-3 text-[#dae2fd] transition-all placeholder:text-[#8c909f]/50 focus:ring-0 focus:outline-none ${
+                descriptionError
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-[#424754] focus:border-[#adc6ff]"
+              }`}
               id="report-description"
-              onChange={(event) => setDescription(event.target.value)}
+              maxLength={500}
+              onChange={(event) => {
+                setDescription(event.target.value);
+                setDescriptionError("");
+              }}
               placeholder="Please provide specific error codes or symptoms..."
               rows={3}
               value={description}
             />
+            <div className="flex items-center justify-between gap-4">
+              {descriptionError ? (
+                <p className="text-xs font-medium text-red-400">
+                  {descriptionError}
+                </p>
+              ) : (
+                <span />
+              )}
+              <span className={`text-xs font-medium tabular-nums ${counterColor}`}>
+                {descriptionLength} / 500
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-col gap-1">
@@ -209,28 +262,41 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
                 <span className="text-sm font-bold text-emerald-400">
                   Auto-captured Diagnostics
                 </span>
-                <div className="flex flex-wrap gap-x-3 font-mono text-xs text-[#c2c6d6]/80">
-                  <span>TS: {autoCapture.timestamp}</span>
-                  <span>Failed: {autoCapture.failedEndpoints}</span>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-[#c2c6d6]/80">
+                  <span>Captured at {autoCapture.timestamp}</span>
+                  <span aria-hidden>·</span>
                   <span
                     className={
-                      autoCapture.errorCode === "NONE"
-                        ? "text-emerald-400/80"
-                        : "text-[#ffb4ab]/80"
+                      failedCount > 0
+                        ? "text-[#ffb4ab]/90"
+                        : "text-emerald-400/80"
                     }
                   >
-                    Err: {autoCapture.errorCode}
+                    {failedCount > 0
+                      ? `${failedCount} service${failedCount === 1 ? "" : "s"} failed`
+                      : "All services OK"}
                   </span>
+                  <span aria-hidden>·</span>
                   <span>
-                    ↓{autoCapture.download ?? "--"}Mbps ↑
-                    {autoCapture.upload ?? "--"}Mbps Ping:{" "}
-                    {autoCapture.latency ?? "--"}ms
+                    ↓{autoCapture.download ?? "--"} Mbps ↑
+                    {autoCapture.upload ?? "--"} Mbps
                   </span>
+                  <span aria-hidden>·</span>
+                  <span>Ping: {autoCapture.latency ?? "--"}ms</span>
+                  {autoCapture.errorCode !== "NONE" ? (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span className="text-[#ffb4ab]/90">
+                        Err: {autoCapture.errorCode}
+                      </span>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>
             <button
-              className="shrink-0 text-sm font-bold text-[#adc6ff] transition-all hover:underline"
+              className="shrink-0 cursor-not-allowed text-sm font-bold text-[#adc6ff] opacity-50"
+              disabled
               title="Coming soon"
               type="button"
             >
@@ -248,8 +314,12 @@ export function ReportIssueDialog({ trigger }: { trigger: ReactNode }) {
               </button>
             </DialogClose>
             <button
-              className="rounded-full bg-[#adc6ff] px-6 py-2.5 text-sm font-bold text-[#00285d] shadow-lg shadow-[#adc6ff]/20 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!canSubmit || isSubmitting}
+              className={`rounded-full px-6 py-2.5 text-sm font-bold shadow-lg transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
+                urgency === "critical"
+                  ? "bg-red-600 text-white shadow-red-600/20 hover:bg-red-700"
+                  : "bg-[#adc6ff] text-[#00285d] shadow-[#adc6ff]/20"
+              }`}
+              disabled={isSubmitting}
               type="submit"
             >
               {isSubmitting ? "Submitting..." : "Submit Report"}

@@ -7,7 +7,7 @@ import {
   HelpCircle,
   LayoutDashboard,
   LogOut,
-  Settings,
+  // Settings,
   Wrench,
   Zap,
 } from "lucide-react";
@@ -22,7 +22,7 @@ const NAV_ITEMS: {
   { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
   { icon: Wrench, label: "Diagnostics", href: "/dashboard/diagnostics" },
   { icon: HelpCircle, label: "Troubleshoot", href: "/dashboard/troubleshoot" },
-  { icon: Settings, label: "Settings", href: null },
+  // { icon: Settings, label: "Settings", href: null },
 ];
 
 export function Sidebar({
